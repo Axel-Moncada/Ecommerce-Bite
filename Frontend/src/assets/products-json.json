@@ -1,0 +1,51 @@
+[
+    {
+      "id": 1,
+      "nombre": "Apple AirPods Pro (2da Gen)",
+      "categoria": "Accesorios",
+      "precio": 1250000,
+      "descripcion": "Auriculares inalámbricos con cancelación de ruido y audio espacial.",
+      "imagen": "https://co.tiendasishop.com/cdn/shop/files/IMG-14912675.jpg?v=1726874179&width=1000"
+    },
+    {
+      "id": 2,
+      "nombre": "Samsung Galaxy S23 Ultra",
+      "categoria": "Celulares",
+      "precio": 5899000,
+      "descripcion": "Pantalla Dynamic AMOLED de 6.8 pulgadas, 512GB almacenamiento y cámara de 200MP.",
+      "imagen": "https://http2.mlstatic.com/D_NQ_NP_748618-MLA73150348973_112023-O.webp"
+    },
+    {
+      "id": 3,
+      "nombre": "Sony WH-1000XM5",
+      "categoria": "Accesorios",
+      "precio": 1400000,
+      "descripcion": "Auriculares con cancelación de ruido líder en la industria y sonido premium.",
+      "imagen": "https://www.sony.com.co/image/6145c1d32e6ac8e63a46c912dc33c5bb?fmt=pjpeg&wid=220&bgcolor=FFFFFF&bgc=FFFFFF"
+    },
+    {
+      "id": 4,
+      "nombre": "Monitor LG UltraGear 34”",
+      "categoria": "Monitores",
+      "precio": 2990000,
+      "descripcion": "Monitor gamer ultra ancho de 34 pulgadas con 144Hz y G-Sync.",
+      "imagen": "https://www.lg.com/content/dam/channel/wcms/co/images/monitores/34gp63a-b_awp_escb_co_c/gallery/DZ-02.jpg"
+    },
+    {
+      "id": 5,
+      "nombre": "MacBook Pro M2 16”",
+      "categoria": "Laptops",
+      "precio": 10500000,
+      "descripcion": "Laptop potente con chip M2 Pro, 16GB RAM y SSD de 1TB.",
+      "imagen": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQJ3DOmvcOb5-vHgiWbFgZ2eGp9BTCYujqESw&s"
+    },
+    {
+      "id": 6,
+      "nombre": "Razer BlackWidow V4 Pro",
+      "categoria": "Teclados",
+      "precio": 850000,
+      "descripcion": "Teclado mecánico gamer con switches verdes y retroiluminación RGB.",
+      "imagen": "https://http2.mlstatic.com/D_NQ_NP_736196-MLU70013337831_062023-O.webp"
+    }
+  ]
+  
