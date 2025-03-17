@@ -4,16 +4,20 @@ require("dotenv").config();
 const db = require("./db");
 
 
+const app = express();
+
+const middlewares = require("./routes/middlewares"); 
+const pedidosRoutes = require("./routes/pedidos");
 const usuariosRoutes = require("./routes/usuarios"); 
 const productosRoutes = require("./routes/productos");
 const carritoRoutes = require("./routes/carrito");  
-const pedidosRoutes = require("./routes/pedidos");
 
-const app = express();
 
-// Configurar middleware
+
+
 app.use(cors());
 app.use(express.json());
+
 
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/productos", productosRoutes); 

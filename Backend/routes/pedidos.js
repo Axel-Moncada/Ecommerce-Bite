@@ -1,110 +1,132 @@
 const express = require("express");
 const db = require("../db");
-const jwt = require("jsonwebtoken");
+const { verificarToken, verificarAdmin } = require("./middlewares");
 
 const router = express.Router();
 
-// 📌 Middleware para verificar el token
-const verificarToken = (req, res, next) => {
-    const token = req.headers["authorization"];
-    if (!token) return res.status(403).json({ error: "Token requerido" });
-
-    jwt.verify(token.split(" ")[1], process.env.JWT_SECRET, (err, decoded) => {
-        if (err) return res.status(401).json({ error: "Token inválido" });
-
-        req.user = decoded;
-        next();
-    });
-};
-
-// 📌 Obtener los pedidos de un usuario
-router.get("/", verificarToken, (req, res) => {
+// 📌 Obtener todos los pedidos de un usuario autenticado
+router.get("/", verificarToken, async (req, res) => {
     const id_usuario = req.user.id;
 
-    db.query(
-        "SELECT * FROM Pedidos WHERE id_usuario = ? ORDER BY fecha_pedido DESC",
-        [id_usuario],
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+    try {
+        const [pedidos] = await db.promise().query(
+            `SELECT p.id_pedido, p.total, p.estado, p.fecha_pedido 
+             FROM Pedidos p 
+             WHERE p.id_usuario = ? 
+             ORDER BY p.fecha_pedido DESC`,
+            [id_usuario]
+        );
+
+        res.json(pedidos);
+    } catch (error) {
+        console.error("❌ Error al obtener los pedidos:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
 });
 
 // 📌 Obtener los detalles de un pedido específico
-router.get("/:id_pedido", verificarToken, (req, res) => {
+router.get("/:id_pedido", verificarToken, async (req, res) => {
     const { id_pedido } = req.params;
 
-    db.query(
-        `SELECT dp.id_detalle, p.nombre, dp.cantidad, dp.precio_unitario
-     FROM Detalles_Pedido dp
-     JOIN Productos p ON dp.id_producto = p.id_producto
-     WHERE dp.id_pedido = ?`,
-        [id_pedido],
-        (err, results) => {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json(results);
-        }
-    );
+    try {
+        const [detalles] = await db.promise().query(
+            `SELECT dp.id_detalle, p.nombre, dp.cantidad, dp.precio_unitario
+             FROM Detalles_Pedido dp
+             JOIN Productos p ON dp.id_producto = p.id_producto
+             WHERE dp.id_pedido = ?`,
+            [id_pedido]
+        );
+
+        res.json(detalles);
+    } catch (error) {
+        console.error("❌ Error al obtener los detalles del pedido:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
 });
 
 // 📌 Crear un nuevo pedido con los productos del carrito
-router.post("/", verificarToken, (req, res) => {
+router.post("/", verificarToken, async (req, res) => {
     const id_usuario = req.user.id;
 
-    // Obtener los productos del carrito con precios correctos
-    db.query(
-        `SELECT c.id_producto, c.cantidad, p.precio 
-     FROM Carrito c 
-     JOIN Productos p ON c.id_producto = p.id_producto 
-     WHERE c.id_usuario = ?`,
-        [id_usuario],
-        (err, carrito) => {
-            if (err) return res.status(500).json({ error: err.message });
+    try {
+        // Obtener productos del carrito
+        const [carrito] = await db.promise().query(
+            `SELECT c.id_producto, c.cantidad, p.precio 
+             FROM Carrito c 
+             JOIN Productos p ON c.id_producto = p.id_producto 
+             WHERE c.id_usuario = ?`,
+            [id_usuario]
+        );
 
-            if (carrito.length === 0) {
-                return res.status(400).json({ error: "El carrito está vacío" });
-            }
-
-            // Validar que todos los productos tengan precio válido
-            let total = 0;
-            for (const item of carrito) {
-                if (!item.precio || isNaN(item.precio)) {
-                    return res.status(400).json({ error: `El producto con ID ${item.id_producto} tiene un precio inválido` });
-                }
-                total += item.cantidad * item.precio;
-            }
-
-            // Crear el pedido
-            db.query(
-                "INSERT INTO Pedidos (id_usuario, total, estado) VALUES (?, ?, 'pendiente')",
-                [id_usuario, total],
-                (err, result) => {
-                    if (err) return res.status(500).json({ error: err.message });
-
-                    const id_pedido = result.insertId;
-
-                    // Insertar los detalles del pedido
-                    const detalles = carrito.map((item) => [id_pedido, item.id_producto, item.cantidad, item.precio]);
-
-                    db.query(
-                        "INSERT INTO Detalles_Pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES ?",
-                        [detalles],
-                        (err) => {
-                            if (err) return res.status(500).json({ error: err.message });
-
-                            // Vaciar el carrito después del pedido
-                            db.query("DELETE FROM Carrito WHERE id_usuario = ?", [id_usuario], (err) => {
-                                if (err) return res.status(500).json({ error: err.message });
-
-                                res.json({ message: "Pedido realizado exitosamente", id_pedido });
-                            });
-                        }
-                    );
-                }
-            );
+        if (carrito.length === 0) {
+            return res.status(400).json({ error: "El carrito está vacío" });
         }
-    );
+
+        // Calcular total
+        const total = carrito.reduce((acc, item) => acc + item.cantidad * item.precio, 0);
+
+        // Insertar el pedido
+        const [pedidoResult] = await db.promise().query(
+            "INSERT INTO Pedidos (id_usuario, total, estado) VALUES (?, ?, 'pendiente')",
+            [id_usuario, total]
+        );
+
+        const id_pedido = pedidoResult.insertId;
+
+        // Insertar detalles del pedido
+        const detalleQuery = `INSERT INTO Detalles_Pedido (id_pedido, id_producto, cantidad, precio_unitario) VALUES (?, ?, ?, ?)`;
+        for (const item of carrito) {
+            await db.promise().query(detalleQuery, [id_pedido, item.id_producto, item.cantidad, item.precio]);
+        }
+
+        // Vaciar el carrito después del pedido
+        await db.promise().query("DELETE FROM Carrito WHERE id_usuario = ?", [id_usuario]);
+
+        res.json({ message: "Pedido realizado exitosamente", id_pedido });
+    } catch (error) {
+        console.error("❌ Error al procesar el pedido:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+});
+
+// 📌 Cambiar estado de un pedido (solo admin)
+router.put("/:id_pedido/estado", verificarToken, verificarAdmin, async (req, res) => {
+    const { id_pedido } = req.params;
+    const { estado } = req.body;
+
+    if (!estado) {
+        return res.status(400).json({ error: "El campo 'estado' es requerido" });
+    }
+
+    const estadosPermitidos = ["pendiente", "procesado", "enviado", "entregado", "cancelado"];
+    if (!estadosPermitidos.includes(estado)) {
+        return res.status(400).json({ error: "Estado no válido" });
+    }
+
+    try {
+        await db.promise().query("UPDATE Pedidos SET estado = ? WHERE id_pedido = ?", [estado, id_pedido]);
+        res.json({ message: "Estado del pedido actualizado" });
+    } catch (error) {
+        console.error("❌ Error al actualizar estado del pedido:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+});
+
+// 📌 Obtener todos los pedidos (solo admin)
+router.get("/admin/todos", verificarToken, verificarAdmin, async (req, res) => {
+    try {
+        const [pedidos] = await db.promise().query(
+            `SELECT p.id_pedido, u.nombre AS usuario, p.total, p.estado, p.fecha_pedido 
+             FROM Pedidos p 
+             JOIN Usuarios u ON p.id_usuario = u.id_usuario 
+             ORDER BY p.fecha_pedido DESC`
+        );
+
+        res.json(pedidos);
+    } catch (error) {
+        console.error("❌ Error al obtener los pedidos:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
 });
 
 module.exports = router;

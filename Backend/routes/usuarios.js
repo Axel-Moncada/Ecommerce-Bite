@@ -6,72 +6,131 @@ require("dotenv").config();
 
 const router = express.Router();
 
-
-
-
-//  Registrar un nuevo usuario
+// 📌 Registrar un nuevo usuario
 router.post("/registro", async (req, res) => {
-    const { nombre, email, contraseña } = req.body;
+    const { nombre, email, password } = req.body;
 
+    if (!nombre || !email || !password) {
+        console.error("❌ Error: Datos faltantes en el registro.");
+        return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
 
+    try {
+        console.log("📥 Datos recibidos:", { nombre, email });
 
-
-    // Verificar si el usuario ya existe
-    db.query("SELECT * FROM Usuarios WHERE email = ?", [email], async (err, users) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (users.length > 0) return res.status(400).json({ error: "El usuario ya está registrado" });
-
-
-
-        // Encriptar contraseña
-        const hashPassword = await bcrypt.hash(contraseña, 10);
-
-
-
-
-        // Insertar usuario en la base de datos
-        db.query(
-            "INSERT INTO Usuarios (nombre, email, contraseña) VALUES (?, ?, ?)",
-            [nombre, email, hashPassword],
-            (err, result) => {
-                if (err) return res.status(500).json({ error: err.message });
-                res.json({ message: "Usuario registrado exitosamente" });
-            }
+        // 🔍 Verificar si el usuario ya existe
+        const [existingUser] = await db.promise().query(
+            "SELECT id_usuario FROM Usuarios WHERE email = ?",
+            [email]
         );
-    });
+
+        if (existingUser.length > 0) {
+            return res.status(400).json({ error: "El usuario ya está registrado" });
+        }
+
+        // 🔐 Encriptar la contraseña
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // 🆕 Insertar usuario
+        const [newUser] = await db.promise().query(
+            "INSERT INTO Usuarios (nombre, email, contraseña, rol) VALUES (?, ?, ?, 'cliente')",
+            [nombre, email, hashedPassword]
+        );
+
+        // 📌 Obtener el usuario recién creado
+        const [usuario] = await db.promise().query(
+            "SELECT id_usuario, nombre, email, rol FROM Usuarios WHERE email = ?",
+            [email]
+        );
+
+        // 🔑 Crear token JWT
+        const token = jwt.sign(
+            { id: usuario[0].id_usuario, email, rol: "cliente" },
+            process.env.JWT_SECRET || "secreto",
+            { expiresIn: "24h" }
+        );
+
+        console.log("✅ Usuario registrado correctamente:", usuario[0]);
+
+        res.status(201).json({ usuario: usuario[0], token });
+    } catch (error) {
+        console.error("❌ Error en el registro:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
 });
 
-
-
-
 // 📌 Iniciar sesión
-router.post("/login", (req, res) => {
-    const { email, contraseña } = req.body;
+router.post("/login", async (req, res) => {
+    console.log("🔍 Datos recibidos en el backend:", req.body);
 
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+        return res.status(400).json({ error: "Email y contraseña son obligatorios" });
+    }
 
-    // Buscar usuario en la base de datos
-    db.query("SELECT * FROM Usuarios WHERE email = ?", [email], async (err, users) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (users.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
+    try {
+        // 🔍 Buscar usuario
+        const [rows] = await db.promise().query(
+            "SELECT id_usuario, nombre, email, rol, contraseña FROM Usuarios WHERE email = ?",
+            [email]
+        );
 
-        const user = users[0];
+        if (rows.length === 0) {
+            return res.status(401).json({ error: "Usuario no encontrado" });
+        }
 
+        const usuario = rows[0];
 
+        // 🔑 Verificar contraseña
+        const contraseñaValida = await bcrypt.compare(password, usuario.contraseña);
 
-        // Verificar contraseña
-        const validPassword = await bcrypt.compare(contraseña, user.contraseña);
-        if (!validPassword) return res.status(401).json({ error: "Contraseña incorrecta" });
+        if (!contraseñaValida) {
+            return res.status(401).json({ error: "Contraseña incorrecta" });
+        }
 
+        // 🔐 Crear token JWT
+        const token = jwt.sign(
+            { id: usuario.id_usuario, rol: usuario.rol },
+            process.env.JWT_SECRET || "secreto",
+            { expiresIn: "2h" }
+        );
 
-
-        // Generar token JWT
-        const token = jwt.sign({ id: user.id_usuario, email: user.email }, process.env.JWT_SECRET, {
-            expiresIn: "2h",
+        console.log("✅ Usuario autenticado:", usuario);
+        res.json({
+            token,
+            usuario: { id_usuario: usuario.id_usuario, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol }
         });
 
-        res.json({ token, usuario: { id: user.id_usuario, nombre: user.nombre, email: user.email } });
-    });
+    } catch (error) {
+        console.error("❌ Error en login:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+});
+
+// 📌 Obtener todos los usuarios (solo admin)
+router.get("/", async (req, res) => {
+    try {
+        const [usuarios] = await db.promise().query("SELECT id_usuario, nombre, email, rol FROM Usuarios");
+        res.json(usuarios);
+    } catch (error) {
+        console.error("❌ Error al obtener usuarios:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+});
+
+// 📌 Eliminar usuario (solo admin)
+router.delete("/:id_usuario", async (req, res) => {
+    const { id_usuario } = req.params;
+
+    try {
+        await db.promise().query("DELETE FROM Usuarios WHERE id_usuario = ?", [id_usuario]);
+        res.json({ message: "Usuario eliminado exitosamente" });
+    } catch (error) {
+        console.error("❌ Error al eliminar usuario:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
 });
 
 module.exports = router;

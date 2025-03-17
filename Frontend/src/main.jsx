@@ -1,16 +1,16 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import Menu from './menu.jsx'
-import Slider from './slider.jsx'
-import Products from './products.jsx'
-import Footer from './footer.jsx'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import "./index.css";
+import App from "./App"; 
+import AuthProvider from "./context/AuthContext"; 
 
-createRoot(document.getElementById('root')).render(
+createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <Menu />
-    <Slider />
-    <Products />
-    <Footer />
-  </StrictMode>,
-)
+    <BrowserRouter>
+      <AuthProvider>
+        <App /> 
+      </AuthProvider>
+    </BrowserRouter>
+  </StrictMode>
+);
