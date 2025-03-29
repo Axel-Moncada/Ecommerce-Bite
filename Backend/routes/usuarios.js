@@ -9,16 +9,13 @@ const router = express.Router();
 // 📌 Registrar un nuevo usuario
 router.post("/registro", async (req, res) => {
     const { nombre, email, password } = req.body;
-
     if (!nombre || !email || !password) {
         console.error("❌ Error: Datos faltantes en el registro.");
         return res.status(400).json({ error: "Todos los campos son obligatorios" });
     }
 
     try {
-        console.log("📥 Datos recibidos:", { nombre, email });
-
-        // 🔍 Verificar si el usuario ya existe
+        //  Verificar si el usuario ya existe
         const [existingUser] = await db.promise().query(
             "SELECT id_usuario FROM Usuarios WHERE email = ?",
             [email]
@@ -28,23 +25,23 @@ router.post("/registro", async (req, res) => {
             return res.status(400).json({ error: "El usuario ya está registrado" });
         }
 
-        // 🔐 Encriptar la contraseña
+        //  Encriptar la contraseña
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        // 🆕 Insertar usuario
+        //  Insertar usuario
         const [newUser] = await db.promise().query(
             "INSERT INTO Usuarios (nombre, email, contraseña, rol) VALUES (?, ?, ?, 'cliente')",
             [nombre, email, hashedPassword]
         );
 
-        // 📌 Obtener el usuario recién creado
+        //  Obtener el usuario recién creado
         const [usuario] = await db.promise().query(
             "SELECT id_usuario, nombre, email, rol FROM Usuarios WHERE email = ?",
             [email]
         );
 
-        // 🔑 Crear token JWT
+        //  Crear token JWT
         const token = jwt.sign(
             { id: usuario[0].id_usuario, email, rol: "cliente" },
             process.env.JWT_SECRET || "secreto",
@@ -129,6 +126,50 @@ router.delete("/:id_usuario", async (req, res) => {
         res.json({ message: "Usuario eliminado exitosamente" });
     } catch (error) {
         console.error("❌ Error al eliminar usuario:", error);
+        res.status(500).json({ error: "Error en el servidor" });
+    }
+});
+
+// 📌 Actualizar usuario (admin o el propio usuario)
+router.put("/:id_usuario", async (req, res) => {
+    const { id_usuario } = req.params;
+    const { nombre, email, password } = req.body;
+
+    if (!nombre && !email && !password) {
+        return res.status(400).json({ error: "Debe proporcionar al menos un campo para actualizar" });
+    }
+
+    try {
+        // Obtener el usuario actual
+        const [result] = await db.promise().query("SELECT * FROM Usuarios WHERE id_usuario = ?", [id_usuario]);
+
+        if (result.length === 0) {
+            return res.status(404).json({ error: "Usuario no encontrado" });
+        }
+
+        const usuarioActual = result[0];
+
+        // Si se envió password, encriptarla
+        let hashedPassword = usuarioActual.contraseña;
+        if (password) {
+            const saltRounds = 10;
+            hashedPassword = await bcrypt.hash(password, saltRounds);
+        }
+
+        // Actualizar el usuario
+        await db.promise().query(
+            "UPDATE Usuarios SET nombre = ?, email = ?, contraseña = ? WHERE id_usuario = ?",
+            [
+                nombre || usuarioActual.nombre,
+                email || usuarioActual.email,
+                hashedPassword,
+                id_usuario
+            ]
+        );
+
+        res.json({ message: "Usuario actualizado correctamente" });
+    } catch (error) {
+        console.error("❌ Error al actualizar usuario:", error);
         res.status(500).json({ error: "Error en el servidor" });
     }
 });

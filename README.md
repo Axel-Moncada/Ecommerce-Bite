@@ -64,7 +64,7 @@ npm install
 
 #### 📌 Ejecutar el servidor backend
 ```bash
-npm run dev
+npm start
 ```
 
 ### **4️⃣ Configurar el frontend**

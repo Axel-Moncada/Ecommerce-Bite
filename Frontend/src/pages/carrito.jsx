@@ -68,7 +68,7 @@ const Carrito = () => {
                     {carrito.map((item) => (
                         <div key={item.id_producto} className="flex justify-between items-center bg-white p-5 shadow-lg rounded-lg">
                             <div>
-                                <img src={item.imagen} alt="" width={100} />
+                                
                                 <h3 className="text-lg font-semibold text-sky-800">{item.nombre}</h3>
                                 <p className="text-sm text-gray-500">Cantidad: {item.cantidad}</p>
                                 <p className="text-xl font-bold text-blue-600 mt-2">
